@@ -117,14 +117,16 @@ class LibraryWindow(QWidget):
             # book_info 변수에는 ["도서명", "저자", "출판사", "출판년도", "수량"] 순서로 도서 정보가 들어 있습니다.
 
     def delete_book(self):
+        # delete_book 함수 내에서 선택된 행을 처리하는 부분 수정
         selected_rows = []
         for row_index in range(self.result_table.rowCount()):
             checkbox_item = self.result_table.item(row_index, 0)
             if checkbox_item.checkState() == Qt.Checked:
                 selected_rows.append(row_index)
-        # 여기에 도서 삭제 기능을 구현하세요
-        # 선택된 행을 확인하고 해당 도서를 데이터베이스에서 삭제하거나 도서 목록에서 제거하는 작업을 수행합니다.
-        for row_index in selected_rows:
+
+        # 선택된 행을 삭제하는 부분
+        # 선택된 행의 인덱스를 역순으로 반복하여 삭제하여 인덱스 오류를 방지합니다.
+        for row_index in reversed(selected_rows):
             self.result_table.removeRow(row_index)
 
     def setup_member_tab(self, tab):
