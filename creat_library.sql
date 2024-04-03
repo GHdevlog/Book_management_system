@@ -28,7 +28,6 @@ user_id INT NOT NULL, -- 대출한 사용자의 ID
 book_id INT NOT NULL, -- 대출한 도서의 ID
 loan_date DATE NOT NULL, -- 대출 날짜
 return_date DATE, -- 반납 날짜 (NULL인 경우 아직 반납되지 않음)
-fine_amount DECIMAL(10, 2), -- 연체료 전체 10 자릿수, 소수점2자리
 FOREIGN KEY (user_id) REFERENCES users(user_id),
 FOREIGN KEY (book_id) REFERENCES books(book_id)
 );
