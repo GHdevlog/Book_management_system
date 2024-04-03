@@ -8,7 +8,7 @@ book_id INT AUTO_INCREMENT PRIMARY KEY, -- 도서 고유 식별자
 title VARCHAR(255) NOT NULL, -- 도서 제목
 author VARCHAR(255) NOT NULL, -- 도서 저자
 publisher VARCHAR(255) NOT NULL, -- 출판사
-publication_year INT NOT NULL, -- 출판년도
+publication_year INT NOT NULL, -- 도서 번호
 available BOOLEAN DEFAULT TRUE -- 도서의 대출 가능 여부
 );
 
@@ -16,8 +16,9 @@ available BOOLEAN DEFAULT TRUE -- 도서의 대출 가능 여부
 CREATE TABLE users(
 user_id INT AUTO_INCREMENT PRIMARY KEY, -- 사용자 고유 식별자
 username VARCHAR(50) NOT NULL UNIQUE, -- 사용자 이름
-password VARCHAR(50) NOT NULL, -- 사용자 비밀번호
-is_admin BOOLEAN DEFAULT FALSE -- 관리자 여부
+phone_number VARCHAR(15) NOT NULL, -- 사용자 연락처
+max_loan INT NOT NULL, -- 대출가능 도서 수
+loaning INT NOT NULL, -- 대출중인 도서 수
 );
 
 -- 대출 이력을 저장하는 테이블
