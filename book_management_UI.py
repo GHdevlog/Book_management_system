@@ -8,7 +8,7 @@ from PyQt5.QtCore import Qt
 def generate_books():
     from random import randrange, choice
     books = []
-    for i in range(1, 21):
+    for i in range(1, 51):
         # 도서명, 저자, 출판사, 출판년도, 도서번호
         book = [
             i,
@@ -25,40 +25,70 @@ def generate_users():
     from random import randrange
     users = []
     for i in range(1, 11):
-        max_loan = randrange(5,11)
+        max_loan = randrange(3,11)
         # 회원 ID, 이용자명, 연락처, 대출가능 도서 수, 대출중인 도서 수
         user = [
             f"{i}",
             f"이용자 {i}",
             f"010-{randrange(1000,10000)}-{randrange(1000,10000)}",
             max_loan,
-            randrange(0,max_loan+1)
+            0
         ]
         users.append(user)
     return users
 
-def generate_loans():
-    from random import randrange
-    users = []
-    for i in range(1, 11):
-        # 대출 번호 
-        user = [
-            f"이용자 {i}",
-            f"{i}",
-            f"010-{randrange(1000,10000)}-{randrange(1000,10000)}",
-            randrange(5,11),
-            randrange(0,6)
-        ]
-        users.append(user)
-    return users
+def generate_loans(books,users):
+    import datetime 
+    from random import randrange, randint
+
+    # 시작 날짜와 종료 날짜 정의
+    start_date = datetime.datetime(2024, 1, 1)
+    end_date = datetime.datetime(2024, 12, 31)
+
+    # 랜덤한 날짜 생성
+    random_date = start_date + datetime.timedelta(days=randint(0, (end_date - start_date).days))
+
+    loan_books = []
+    loan_id = 0
+    for book in books:
+        if book[5] == "대출중":
+            loan_id += 1
+            book_name = book[1]
+            book_id = book[0]
+            # 랜덤한 사용자 선택
+            user = users[randint(0, len(users) - 1)]
+            user_id = user[0]
+            user_name = user[1]
+            # 해당 사용자의 대출 가능한 도서 수와 대출 중인 도서 수 확인
+            max_loan = user[3]
+            current_loans = user[4]
+            # 최대 대출 권수를 넘지 않는 경우에만 대출 생성
+            if current_loans < max_loan:
+                # 해당 사용자의 대출 중인 도서 수 증가
+                user[4] += 1
+                loan_date = random_date
+                due_date = random_date + datetime.timedelta(10)
+                loan_info = [
+                    loan_id,
+                    book_name,
+                    book_id,
+                    user_name,
+                    user_id,
+                    loan_date,
+                    due_date
+                ]
+                loan_books.append(loan_info)
+    return loan_books
 
 class LibraryWindow(QWidget):
 
     book_dummy_data = generate_books()
     user_dummy_data = generate_users()
+    loan_dummy_data = generate_loans(book_dummy_data, user_dummy_data)
     
     book_labels = ["도서번호","도서명", "저자", "출판사", "출판년도" ,"대출 상태"]
-    user_labels = ["회원 ID", "이용자명", "연락처", "대출가능 도서 수", "대출중인 도서 수"]
+    user_labels = ["회원번호", "이용자명", "연락처", "대출가능 도서 수", "대출중인 도서 수"]
+    loan_labels = ["대출번호","도서명", "도서번호","대출자명", "대출자번호", "대출일", "반납 예정일"]
 
     def __init__(self):
         super().__init__()
@@ -115,12 +145,12 @@ class LibraryWindow(QWidget):
         manage_layout = QHBoxLayout()
 
         add_book_button = QPushButton("도서 추가")
-        add_book_button.clicked.connect(self.show_add_book_dialog)
+        add_book_button.clicked.connect(self.show_book_add_dialog)
         modify_book_button = QPushButton("도서 수정")  # 수정 버튼 추가
-        modify_book_button.clicked.connect(self.modify_data)  # 수정 버튼에 대한 이벤트 핸들러 연결
+        modify_book_button.clicked.connect(self.show_book_modify_dialog)  # 수정 버튼에 대한 이벤트 핸들러 연결
         delete_book_button = QPushButton("도서 삭제")
         delete_book_button.clicked.connect(lambda : self.delete_data(what_deleting_for='book'))
-        loan_book_button = QPushButton("도서 대출")
+        loan_book_button = QPushButton("대출할 도서로 추가")
         loan_book_button.clicked.connect(self.loan_book)
         
 
@@ -182,13 +212,16 @@ class LibraryWindow(QWidget):
         user_manage_layout = QHBoxLayout()
 
         add_book_button = QPushButton("회원 추가")
-        add_book_button.clicked.connect(self.show_add_book_dialog)
+        add_book_button.clicked.connect(self.show_user_add_dialog)
+        modify_book_button = QPushButton("회원 수정")
+        modify_book_button.clicked.connect(self.show_user_modify_dialog)
         delete_book_button = QPushButton("회원 삭제")
         delete_book_button.clicked.connect(lambda : self.delete_data(what_deleting_for='user'))
-        loan_book_button = QPushButton("대출 하기")
+        loan_book_button = QPushButton("대출 할 회원으로 선택")
         loan_book_button.clicked.connect(self.loan_book)
 
         user_manage_layout.addWidget(add_book_button)
+        user_manage_layout.addWidget(modify_book_button)
         user_manage_layout.addWidget(delete_book_button)
         user_manage_layout.addWidget(loan_book_button)
 
@@ -210,26 +243,82 @@ class LibraryWindow(QWidget):
         tab.setLayout(layout)
 
     def setup_loan_tab(self, tab):
-        layout = QVBoxLayout()
-        loan_label = QLabel("회원 이름:")
-        self.loan_edit = QLineEdit()
-        loan_button = QPushButton("대출 정보 검색")
-        loan_button.clicked.connect(self.search_loan)
-        self.loan_result = QTextEdit()
 
-        layout.addWidget(loan_label)
-        layout.addWidget(self.loan_edit)
-        layout.addWidget(loan_button)
-        layout.addWidget(self.loan_result)
+        layout = QVBoxLayout()
+
+        # 수평 레이아웃을 생성하여 검색할 항목, 검색어 및 검색 버튼을 같은 줄에 배치
+        user_layout = QHBoxLayout()
+
+        # 검색할 항목을 선택할 콤보 박스
+        search_by_label = QLabel("검색할 항목:")
+        self.search_by_combo = QComboBox()
+        self.search_by_combo.addItems(["도서명", "회원 ID", "연락처"])
+        # 입력 필드
+        search_label = QLabel("검색어:")
+        self.search_edit = QLineEdit()
+        # self.search_edit.returnPressed.connect(self.search_user)
+        self.search_edit.returnPressed.connect(lambda : self.search_data(what_searching_for='user'))
+
+        # 검색 버튼
+        search_button = QPushButton("검색")
+        search_button.clicked.connect(lambda : self.search_data(what_searching_for='user'))
+
+        user_layout.addWidget(search_by_label)
+        user_layout.addWidget(self.search_by_combo)
+        user_layout.addWidget(search_label)
+        user_layout.addWidget(self.search_edit)
+        user_layout.addWidget(search_button)
+
+        # ---------------------------------------
+        loan_manage_layout = QHBoxLayout()
+
+        add_book_button = QPushButton("회원 추가")
+        add_book_button.clicked.connect(self.show_user_add_dialog)
+        modify_book_button = QPushButton("회원 수정")
+        modify_book_button.clicked.connect(self.show_user_modify_dialog)
+        delete_book_button = QPushButton("회원 삭제")
+        delete_book_button.clicked.connect(lambda : self.delete_data(what_deleting_for='user'))
+        loan_book_button = QPushButton("대출 하기")
+        loan_book_button.clicked.connect(self.loan_book)
+
+        loan_manage_layout.addWidget(add_book_button)
+        loan_manage_layout.addWidget(modify_book_button)
+        loan_manage_layout.addWidget(delete_book_button)
+        loan_manage_layout.addWidget(loan_book_button)
+
+        #-----------------------------------------
+        # 검색 결과를 표로 표시하기 위한 테이블 위젯
+        self.loan_result_table = QTableWidget()
+        self.loan_result_table.setColumnCount(len(self.loan_labels)+1) 
+        self.loan_result_table.setHorizontalHeaderLabels([""] + self.loan_labels)
+        self.loan_result_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.loan_result_table.setSortingEnabled(True)  # 정렬 기능 활성화
+
+        # 테이블 편집 비활성화
+        self.loan_result_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+
+        layout.addLayout(user_layout)
+        layout.addLayout(loan_manage_layout)
+        layout.addWidget(self.loan_result_table)
+
         tab.setLayout(layout)
 
-    def show_add_book_dialog(self):
+    def show_book_add_dialog(self):
         dialog = BookAddDialog()
         if dialog.exec_():
             book_info = dialog.get_book_info()
             self.book_dummy_data.append(book_info)
             # 여기서 도서 정보를 가져와서 도서 목록에 추가하는 작업을 수행합니다.
+            # book_info 변수에는 ["도서명", "저자", "출판사", "출판년도", "도서번호"] 순서로 도서 정보가 들어 있습니다. 
+            
+    def show_user_add_dialog(self):
+        dialog = UserAddDialog()
+        if dialog.exec_():
+            user_info = dialog.get_user_info()
+            self.user_dummy_data.append(user_info)
+            # 여기서 도서 정보를 가져와서 도서 목록에 추가하는 작업을 수행합니다.
             # book_info 변수에는 ["도서명", "저자", "출판사", "출판년도", "도서번호"] 순서로 도서 정보가 들어 있습니다.
+
     def search_data(self, what_searching_for:str):
     # Determine whether it's a book search or user search
         if what_searching_for == 'book':
@@ -257,72 +346,69 @@ class LibraryWindow(QWidget):
             self.add_checkbox_to_row(row_index, result_table)
             for col_index, col_data in enumerate(row_data):
                 item = QTableWidgetItem(str(col_data))
-                if isinstance(col_data, int) and col_index in (3, 4):
+                if isinstance(col_data, int) and col_index in (0, 4):
                     item.setData(Qt.DisplayRole, int(col_data))
                 result_table.setItem(row_index, col_index + 1, item) 
 
-    def modify_data(self):
+    def show_book_modify_dialog(self):
         selected_rows = []
         for row_index in range(self.result_table.rowCount()):
             checkbox_item = self.result_table.item(row_index, 0)
             if checkbox_item.checkState() == Qt.Checked:
                 selected_rows.append(row_index)
 
-        # 선택된 항목이 없을 경우 메시지 표시 후 종료
-        if not selected_rows:
-            QMessageBox.information(self, "알림", "수정할 항목을 선택하세요.")
+        if len(selected_rows) != 1:
+            QMessageBox.information(self, "알림", "수정할 항목을 하나만 선택하세요.")
             return
 
-        # 선택된 행이 여러 개인 경우 메시지 표시 후 종료
-        if len(selected_rows) > 1:
-            QMessageBox.information(self, "알림", "한 번에 하나의 항목만 수정할 수 있습니다.")
+        selected_row_index = selected_rows[0]
+        selected_book_info = self.book_dummy_data[selected_row_index]
+
+        dialog = BookModifyDialog(selected_book_info)
+        if dialog.exec_():
+            modified_book_info = dialog.get_modified_book_info()
+            self.book_dummy_data[selected_row_index] = modified_book_info
+            self.update_book_table()
+            
+    def show_user_modify_dialog(self):
+        selected_rows = []
+        for row_index in range(self.user_result_table.rowCount()):
+            checkbox_item = self.user_result_table.item(row_index, 0)
+            if checkbox_item.checkState() == Qt.Checked:
+                selected_rows.append(row_index)
+
+        if len(selected_rows) != 1:
+            QMessageBox.information(self, "알림", "수정할 항목을 하나만 선택하세요.")
             return
 
-        # 선택된 행의 인덱스
-        row_index = selected_rows[0]
+        selected_row_index = selected_rows[0]
+        selected_user_info = self.user_dummy_data[selected_row_index]
 
-        # 편집 모드로 변경하여 셀을 편집 가능하게 함
-        for col_index in range(1, self.result_table.columnCount()):
-            self.result_table.item(row_index, col_index).setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsEditable)
+        dialog = UserModifyDialog(selected_user_info)
+        if dialog.exec_():
+            modified_user_info = dialog.get_modified_user_info()
+            self.book_dummy_data[selected_row_index] = modified_user_info
+            self.update_user_table()
 
-        # 저장 버튼 생성 및 연결
-        save_button = QPushButton("저장")
-        save_button.clicked.connect(lambda: self.save_book_changes(row_index))
-        self.result_table.setCellWidget(row_index, self.result_table.columnCount(), save_button)
-        
-        # 셀이 편집될 때마다 데이터를 업데이트하는 함수를 연결
-        self.result_table.cellChanged.connect(self.update_book_info)
+    def update_book_table(self):
+        self.result_table.setRowCount(0)
+        for row_index, row_data in enumerate(self.book_dummy_data):
+            self.add_checkbox_to_row(row_index, self.result_table)
+            for col_index, col_data in enumerate(row_data):
+                item = QTableWidgetItem(str(col_data))
+                if isinstance(col_data, int) and col_index in (0, 4):
+                    item.setData(Qt.DisplayRole, int(col_data))
+                self.result_table.setItem(row_index, col_index + 1, item)
 
-    def update_book_info(self, row, column):
-        # 수정된 셀의 행과 열 인덱스를 가져옴
-        edited_item = self.result_table.item(row, column)
-        edited_text = edited_item.text()
-
-        # 수정된 내용을 데이터에 반영
-        if column == 1:
-            self.book_dummy_data[row][0] = edited_text
-        elif column == 2:
-            self.book_dummy_data[row][1] = edited_text
-        elif column == 3:
-            self.book_dummy_data[row][2] = edited_text
-        elif column == 4:
-            self.book_dummy_data[row][3] = edited_text
-        elif column == 5:
-            self.book_dummy_data[row][4] = edited_text
-
-    def save_book_changes(self, row_index):
-        # 수정된 내용을 데이터에 반영
-        for col_index in range(1, self.result_table.columnCount()):
-            edited_text = self.result_table.item(row_index, col_index).text()
-            self.book_dummy_data[row_index][col_index - 1] = edited_text  # 수정된 내용을 데이터에 반영
-
-        # 편집 모드 해제
-        for col_index in range(1, self.result_table.columnCount()):
-            item = self.result_table.item(row_index, col_index)
-            item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # 편집 가능한 플래그 제거
-
-        # 저장 버튼 삭제
-        self.result_table.removeCellWidget(row_index, self.result_table.columnCount() - 1)
+    def update_user_table(self):
+        self.user_result_table.setRowCount(0)
+        for row_index, row_data in enumerate(self.book_dummy_data):
+            self.add_checkbox_to_row(row_index, self.user_result_table)
+            for col_index, col_data in enumerate(row_data):
+                item = QTableWidgetItem(str(col_data))
+                if isinstance(col_data, int) and col_index in (1, 3, 4):
+                    item.setData(Qt.DisplayRole, int(col_data))
+                self.user_result_table.setItem(row_index, col_index + 1, item)
 
     def delete_data(self, what_deleting_for:str):
         # 선택된 행의 인덱스 추적
@@ -352,7 +438,6 @@ class LibraryWindow(QWidget):
             for row_index in reversed(selected_rows):
                 result_table.removeRow(row_index)
                 data.remove(data[row_index])
-
     
     def search_loan(self):
         user_name = self.loan_edit.text()
@@ -417,11 +502,171 @@ class BookAddDialog(QDialog):
         publisher = self.publisher_edit.text()
         publish_year = self.publish_year_edit.text()
         book_code = self.book_code_edit.text()
+        loan_status = "대출가능"
 
         # 올바르지 않은 값 필터링
 
-        return book_name, author, publisher, publish_year, book_code
+        return book_name, author, publisher, publish_year, book_code, loan_status
     
+class BookModifyDialog(QDialog):
+    def __init__(self, book_info):
+        super().__init__()
+
+        self.setWindowTitle("도서 수정")
+        self.setGeometry(200, 200, 400, 200)
+
+        layout = QVBoxLayout()
+
+        self.book_name_edit = QLineEdit(str(book_info[0]))
+        self.author_edit = QLineEdit(book_info[1])
+        self.publisher_edit = QLineEdit(book_info[2])
+        self.publish_year_edit = QLineEdit(book_info[3])
+        self.book_code_edit = QLineEdit(str(book_info[4]))
+        self.loan_status_edit = QLineEdit(book_info[5])
+
+        book_name_layout = QHBoxLayout()
+        book_name_layout.addWidget(QLabel("도서명:"))
+        book_name_layout.addWidget(self.book_name_edit)
+
+        author_layout = QHBoxLayout()
+        author_layout.addWidget(QLabel("저자:"))
+        author_layout.addWidget(self.author_edit)
+
+        publisher_layout = QHBoxLayout()
+        publisher_layout.addWidget(QLabel("출판사:"))
+        publisher_layout.addWidget(self.publisher_edit)
+
+        publish_year_layout = QHBoxLayout()
+        publish_year_layout.addWidget(QLabel("출판년도:"))
+        publish_year_layout.addWidget(self.publish_year_edit)
+
+        book_code_layout = QHBoxLayout()
+        book_code_layout.addWidget(QLabel("도서 번호:"))
+        book_code_layout.addWidget(self.book_code_edit)
+
+        layout.addLayout(book_name_layout)
+        layout.addLayout(author_layout)
+        layout.addLayout(publisher_layout)
+        layout.addLayout(publish_year_layout)
+        layout.addLayout(book_code_layout)
+
+        modify_button = QPushButton("수정")
+        modify_button.clicked.connect(self.accept)
+
+        layout.addWidget(modify_button)
+
+        self.setLayout(layout)
+
+    def get_modified_book_info(self):
+        book_name = self.book_name_edit.text()
+        author = self.author_edit.text()
+        publisher = self.publisher_edit.text()
+        publish_year = self.publish_year_edit.text()
+        book_code = self.book_code_edit.text()
+        loan_status = self.loan_status_edit.text()
+
+        return book_name, author, publisher, publish_year, book_code, loan_status
+
+class UserAddDialog(QDialog):
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowTitle("회원 추가")
+        self.setGeometry(200, 200, 400, 200)
+
+        layout = QVBoxLayout()
+
+        self.user_id_edit = QLineEdit()
+        self.user_name_edit = QLineEdit()
+        self.contact_edit = QLineEdit()
+        self.max_books_edit = QLineEdit()
+
+        user_id_layout = QHBoxLayout()
+        user_id_layout.addWidget(QLabel("회원 ID:"))
+        user_id_layout.addWidget(self.user_id_edit)
+
+        user_name_layout = QHBoxLayout()
+        user_name_layout.addWidget(QLabel("이용자명:"))
+        user_name_layout.addWidget(self.user_name_edit)
+
+        contact_layout = QHBoxLayout()
+        contact_layout.addWidget(QLabel("연락처:"))
+        contact_layout.addWidget(self.contact_edit)
+
+        max_books_layout = QHBoxLayout()
+        max_books_layout.addWidget(QLabel("대출가능 도서 수:"))
+        max_books_layout.addWidget(self.max_books_edit)
+
+        layout.addLayout(user_id_layout)
+        layout.addLayout(user_name_layout)
+        layout.addLayout(contact_layout)
+        layout.addLayout(max_books_layout)
+
+        add_button = QPushButton("추가")
+        add_button.clicked.connect(self.accept)
+
+        layout.addWidget(add_button)
+
+        self.setLayout(layout)
+
+    def get_user_info(self):
+        user_id = self.user_id_edit.text()
+        user_name = self.user_name_edit.text()
+        contact = self.contact_edit.text()
+        max_books = self.max_books_edit.text()
+
+        return user_id, user_name, contact, max_books
+
+class UserModifyDialog(QDialog):
+    def __init__(self, user_info):
+        super().__init__()
+
+        self.setWindowTitle("회원 수정")
+        self.setGeometry(200, 200, 400, 200)
+
+        layout = QVBoxLayout()
+
+        self.user_id_edit = QLineEdit(user_info[0])
+        self.user_name_edit = QLineEdit(user_info[1])
+        self.contact_edit = QLineEdit(user_info[2])
+        self.max_books_edit = QLineEdit(str(user_info[3]))
+
+        user_id_layout = QHBoxLayout()
+        user_id_layout.addWidget(QLabel("회원 ID:"))
+        user_id_layout.addWidget(self.user_id_edit)
+
+        user_name_layout = QHBoxLayout()
+        user_name_layout.addWidget(QLabel("이용자명:"))
+        user_name_layout.addWidget(self.user_name_edit)
+
+        contact_layout = QHBoxLayout()
+        contact_layout.addWidget(QLabel("연락처:"))
+        contact_layout.addWidget(self.contact_edit)
+
+        max_books_layout = QHBoxLayout()
+        max_books_layout.addWidget(QLabel("대출가능 도서 수:"))
+        max_books_layout.addWidget(self.max_books_edit)
+
+        layout.addLayout(user_id_layout)
+        layout.addLayout(user_name_layout)
+        layout.addLayout(contact_layout)
+        layout.addLayout(max_books_layout)
+
+        modify_button = QPushButton("수정")
+        modify_button.clicked.connect(self.accept)
+
+        layout.addWidget(modify_button)
+
+        self.setLayout(layout)
+
+    def get_modified_user_info(self):
+        user_id = self.user_id_edit.text()
+        user_name = self.user_name_edit.text()
+        contact = self.contact_edit.text()
+        max_books = self.max_books_edit.text()
+
+        return user_id, user_name, contact, max_books
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = LibraryWindow()
