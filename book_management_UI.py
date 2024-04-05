@@ -116,6 +116,12 @@ class LibraryWindow(QWidget):
         layout.addWidget(tab_widget)
         self.setLayout(layout)
 
+    def add_checkbox_to_row(self, row_index, table):
+        checkbox_item = QTableWidgetItem()
+        checkbox_item.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)  # 사용자가 체크 가능하도록 설정
+        checkbox_item.setCheckState(Qt.Unchecked)  # 기본적으로 체크 안된 상태로 설정
+        table.setItem(row_index, 0, checkbox_item)  # 체크박스를 첫 번째 열에 추가
+        
     def setup_book_tab(self, tab):
         layout = QVBoxLayout()
 
@@ -152,11 +158,11 @@ class LibraryWindow(QWidget):
         book_manage_layout = QHBoxLayout()
 
         add_book_button = QPushButton("도서 추가")
-        add_book_button.clicked.connect(self.show_book_add_dialog)
+        add_book_button.clicked.connect(self.add_book)
         modify_book_button = QPushButton("도서 수정")  # 수정 버튼 추가
-        modify_book_button.clicked.connect(self.show_book_modify_dialog)  # 수정 버튼에 대한 이벤트 핸들러 연결
+        modify_book_button.clicked.connect(self.edit_book)  # 수정 버튼에 대한 이벤트 핸들러 연결
         delete_book_button = QPushButton("도서 삭제")
-        delete_book_button.clicked.connect(lambda : self.delete_data(what_deleting_for='book'))
+        delete_book_button.clicked.connect(self.delete_book)
         loan_book_button = QPushButton("대출할 도서로 추가")
         loan_book_button.clicked.connect(self.loan_book)
         
@@ -183,11 +189,7 @@ class LibraryWindow(QWidget):
 
         tab.setLayout(layout)
 
-    def add_checkbox_to_row(self, row_index, table):
-        checkbox_item = QTableWidgetItem()
-        checkbox_item.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)  # 사용자가 체크 가능하도록 설정
-        checkbox_item.setCheckState(Qt.Unchecked)  # 기본적으로 체크 안된 상태로 설정
-        table.setItem(row_index, 0, checkbox_item)  # 체크박스를 첫 번째 열에 추가
+
 
     def setup_user_tab(self, tab):
         layout = QVBoxLayout()
@@ -223,7 +225,7 @@ class LibraryWindow(QWidget):
         user_manage_layout = QHBoxLayout()
 
         add_user_button = QPushButton("회원 추가")
-        add_user_button.clicked.connect(self.show_user_add_dialog)
+        add_user_button.clicked.connect(self.add_user)
         modify_user_button = QPushButton("회원 수정")
         modify_user_button.clicked.connect(self.show_user_modify_dialog)
         delete_user_button = QPushButton("회원 삭제")
@@ -293,15 +295,38 @@ class LibraryWindow(QWidget):
 
         tab.setLayout(layout)
 
-    def show_book_add_dialog(self):
+    def add_book(self):
         dialog = BookAddDialog()
         if dialog.exec_():
             book_info = dialog.get_book_info()
-            self.book_dummy_data.append(book_info)
-            # 여기서 도서 정보를 가져와서 도서 목록에 추가하는 작업을 수행합니다.
-            # book_info 변수에는 ["도서명", "저자", "출판사", "출판년도", "도서번호"] 순서로 도서 정보가 들어 있습니다. 
-            
-    def show_user_add_dialog(self):
+            # 책 정보를 데이터베이스에 추가하는 코드
+            self.add_book_to_database(book_info)
+            # 여기서 도서 정보를 가져와서 도서 DB에 추가하는 작업을 수행합니다.
+            # book_info 변수에는 ["도서명", "저자", "출판사", "출판년도"] 순서로 도서 정보가 들어 있습니다. 
+
+    def add_book_to_database(self, book_info):
+    # DB 연결 정보 설정
+        db_connection = pymysql.connect(
+            host="localhost",
+            user="root",
+            password="0000",
+            database="library_management"
+        )
+
+        # 쿼리 준비
+        query = "INSERT INTO books (title, author, publisher, publication_year) VALUES (%s, %s, %s, %s)"
+
+        # 쿼리 실행
+        cursor = db_connection.cursor()
+        cursor.execute(query, book_info)
+
+        # 커밋
+        db_connection.commit()
+        
+        # 연결 해제
+        db_connection.close()
+                
+    def add_user(self):
         dialog = UserAddDialog()
         if dialog.exec_():
             user_info = dialog.get_user_info()
@@ -309,29 +334,121 @@ class LibraryWindow(QWidget):
             # 여기서 도서 정보를 가져와서 도서 목록에 추가하는 작업을 수행합니다.
             # book_info 변수에는 ["도서명", "저자", "출판사", "출판년도", "도서번호"] 순서로 도서 정보가 들어 있습니다.
 
-    def show_book_modify_dialog(self):
+    def edit_book(self):
+    # 수정할 도서 선택 대화상자 열기
         selected_rows = []
         for row_index in range(self.book_result_table.rowCount()):
             checkbox_item = self.book_result_table.item(row_index, 0)
             if checkbox_item.checkState() == Qt.Checked:
                 selected_rows.append(row_index)
 
-        if len(selected_rows) > 1:
+        if len(selected_rows) != 1:
             QMessageBox.information(self, "알림", "수정할 항목을 하나만 선택하세요.")
             return
-        elif len(selected_rows) < 1:
-            QMessageBox.information(self, "알림", "수정할 항목을 선택하세요.")
+
+        # 선택된 도서의 정보 가져오기
+        selected_row = selected_rows[0]
+        book_id = self.book_result_table.item(selected_row, 1).text()  # 도서 ID 가져오기
+        book_info = self.get_book_info_from_database(book_id)
+
+        # 도서 정보 수정 대화상자 열기
+        dialog = BookEditDialog(book_info)
+        if dialog.exec_():
+            updated_book_info = dialog.get_modified_book_info()
+
+            # 도서 정보를 데이터베이스에 업데이트
+            self.update_book_in_database(book_id, updated_book_info)
+
+    def get_book_info_from_database(self, book_id):
+    # DB 연결 정보 설정
+        db_connection = pymysql.connect(
+            host="localhost",
+            user="root",
+            password="0000",
+            database="library_management"
+        )
+
+        # 쿼리 준비
+        query = "SELECT * FROM books WHERE book_id = %s"
+
+        # 쿼리 실행
+        cursor = db_connection.cursor()
+        cursor.execute(query, (book_id,))
+
+        # 결과 가져오기
+        book_info = cursor.fetchone()
+        
+        # 연결 해제
+        db_connection.close()
+
+        return book_info
+    
+    def update_book_in_database(self, book_id, updated_book_info):
+    # DB 연결 정보 설정
+        db_connection = pymysql.connect(
+            host="localhost",
+            user="root",
+            password="0000",
+            database="library_management"
+        )
+
+        # 쿼리 준비
+        query = "UPDATE books SET title = %s, author = %s, publisher = %s, publication_year = %s WHERE book_id = %s"
+
+        # 쿼리 실행
+        cursor = db_connection.cursor()
+        cursor.execute(query, (*updated_book_info, book_id))
+
+        # 커밋
+        db_connection.commit()
+        
+        # 연결 해제
+        db_connection.close()
+
+    def delete_book(self):
+        # 선택된 도서 확인
+        selected_rows = []
+        for row_index in range(self.book_result_table.rowCount()):
+            checkbox_item = self.book_result_table.item(row_index, 0)
+            if checkbox_item.checkState() == Qt.Checked:
+                selected_rows.append(row_index)
+
+        if len(selected_rows) < 1:
+            QMessageBox.information(self, "알림", "삭제할 항목을 선택하세요.")
             return
 
-        selected_row_index = selected_rows[0]
-        selected_book_info = self.book_dummy_data[selected_row_index]
+        # 선택된 도서의 ID 가져오기
+        book_ids = [self.book_result_table.item(row, 1).text() for row in selected_rows]
 
-        dialog = BookModifyDialog(selected_book_info)
-        if dialog.exec_():
-            modified_book_info = dialog.get_modified_book_info()
-            self.book_dummy_data[selected_row_index] = modified_book_info
-            self.update_book_table()
-            
+        # DB에서 도서 삭제
+        for book_id in book_ids:
+            self.delete_book_from_database(book_id)
+
+        # 도서 목록 업데이트
+        self.update_book_table()
+
+    def delete_book_from_database(self, book_id):
+        # DB 연결 정보 설정
+        db_connection = pymysql.connect(
+            host="localhost",
+            user="root",
+            password="0000",
+            database="library_management"
+        )
+
+        # 쿼리 준비
+        query = "DELETE FROM books WHERE book_id = %s"
+
+        # 쿼리 실행
+        cursor = db_connection.cursor()
+        cursor.execute(query, (book_id,))
+
+        # 커밋
+        db_connection.commit()
+
+        # 연결 해제
+        db_connection.close()
+
     def show_user_modify_dialog(self):
         selected_rows = []
         for row_index in range(self.user_result_table.rowCount()):
@@ -587,15 +704,10 @@ class BookAddDialog(QDialog):
         publish_year_layout.addWidget(QLabel("출판년도:"))
         publish_year_layout.addWidget(self.publish_year_edit)
 
-        book_code_layout = QHBoxLayout()
-        book_code_layout.addWidget(QLabel("도서 번호:"))
-        book_code_layout.addWidget(self.book_code_edit)
-
         layout.addLayout(book_name_layout)
         layout.addLayout(author_layout)
         layout.addLayout(publisher_layout)
         layout.addLayout(publish_year_layout)
-        layout.addLayout(book_code_layout)
 
         add_button = QPushButton("추가")
         add_button.clicked.connect(self.accept)
@@ -609,14 +721,12 @@ class BookAddDialog(QDialog):
         author = self.author_edit.text()
         publisher = self.publisher_edit.text()
         publish_year = self.publish_year_edit.text()
-        book_code = self.book_code_edit.text()
-        loan_status = "대출가능"
     
         # 올바르지 않은 값 필터링
-        return book_name, author, publisher, publish_year, book_code, loan_status
+        return book_name, author, publisher, publish_year
     
 
-class BookModifyDialog(QDialog):
+class BookEditDialog(QDialog):
     def __init__(self, book_info):
         super().__init__()
 
@@ -625,12 +735,10 @@ class BookModifyDialog(QDialog):
 
         layout = QVBoxLayout()
 
-        self.book_name_edit = QLineEdit(str(book_info[0]))
-        self.author_edit = QLineEdit(book_info[1])
-        self.publisher_edit = QLineEdit(book_info[2])
-        self.publish_year_edit = QLineEdit(book_info[3])
-        self.book_code_edit = QLineEdit(str(book_info[4]))
-        self.loan_status_edit = QLineEdit(book_info[5])
+        self.book_name_edit = QLineEdit(str(book_info[1]))
+        self.author_edit = QLineEdit(book_info[2])
+        self.publisher_edit = QLineEdit(book_info[3])
+        self.publish_year_edit = QLineEdit(str(book_info[4]))
 
         book_name_layout = QHBoxLayout()
         book_name_layout.addWidget(QLabel("도서명:"))
@@ -648,15 +756,10 @@ class BookModifyDialog(QDialog):
         publish_year_layout.addWidget(QLabel("출판년도:"))
         publish_year_layout.addWidget(self.publish_year_edit)
 
-        book_code_layout = QHBoxLayout()
-        book_code_layout.addWidget(QLabel("도서 번호:"))
-        book_code_layout.addWidget(self.book_code_edit)
-
         layout.addLayout(book_name_layout)
         layout.addLayout(author_layout)
         layout.addLayout(publisher_layout)
         layout.addLayout(publish_year_layout)
-        layout.addLayout(book_code_layout)
 
         modify_button = QPushButton("수정")
         modify_button.clicked.connect(self.accept)
@@ -670,10 +773,8 @@ class BookModifyDialog(QDialog):
         author = self.author_edit.text()
         publisher = self.publisher_edit.text()
         publish_year = self.publish_year_edit.text()
-        book_code = self.book_code_edit.text()
-        loan_status = self.loan_status_edit.text()
 
-        return book_name, author, publisher, publish_year, book_code, loan_status
+        return book_name, author, publisher, publish_year
 
 class UserAddDialog(QDialog):
     def __init__(self):
@@ -689,10 +790,6 @@ class UserAddDialog(QDialog):
         self.contact_edit = QLineEdit()
         self.max_books_edit = QLineEdit()
 
-        user_id_layout = QHBoxLayout()
-        user_id_layout.addWidget(QLabel("회원 ID:"))
-        user_id_layout.addWidget(self.user_id_edit)
-
         user_name_layout = QHBoxLayout()
         user_name_layout.addWidget(QLabel("이용자명:"))
         user_name_layout.addWidget(self.user_name_edit)
@@ -705,7 +802,6 @@ class UserAddDialog(QDialog):
         max_books_layout.addWidget(QLabel("대출가능 도서 수:"))
         max_books_layout.addWidget(self.max_books_edit)
 
-        layout.addLayout(user_id_layout)
         layout.addLayout(user_name_layout)
         layout.addLayout(contact_layout)
         layout.addLayout(max_books_layout)
@@ -718,12 +814,11 @@ class UserAddDialog(QDialog):
         self.setLayout(layout)
 
     def get_user_info(self):
-        user_id = self.user_id_edit.text()
         user_name = self.user_name_edit.text()
         contact = self.contact_edit.text()
         max_books = self.max_books_edit.text()
 
-        return user_id, user_name, contact, max_books
+        return user_name, contact, max_books
 
 class UserModifyDialog(QDialog):
     def __init__(self, user_info):
