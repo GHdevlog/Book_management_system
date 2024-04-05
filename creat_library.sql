@@ -1,6 +1,6 @@
-show databases;
-create database library;
-use library;
+
+-- create database library;
+-- use library;
 
 -- 도서 정보를 저장하는 테이블
 CREATE TABLE books (
@@ -9,7 +9,7 @@ title VARCHAR(255) NOT NULL, -- 도서 제목
 author VARCHAR(255) NOT NULL, -- 도서 저자
 publisher VARCHAR(255) NOT NULL, -- 출판사
 publication_year INT NOT NULL, -- 도서 번호
-available BOOLEAN DEFAULT TRUE -- 도서의 대출 가능 여부
+loan_status BOOLEAN DEFAULT FALSE -- 도서의 대출 가능 여부
 );
 
 -- 사용자 정보를 저장하는 테이블 (선택 사항)
@@ -31,3 +31,4 @@ return_date DATE, -- 반납 날짜 (NULL인 경우 아직 반납되지 않음)
 FOREIGN KEY (user_id) REFERENCES users(user_id),
 FOREIGN KEY (book_id) REFERENCES books(book_id)
 );
+

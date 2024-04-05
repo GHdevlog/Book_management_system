@@ -1,0 +1,30 @@
+// Use DBML to define your database structure
+// Docs: https://dbml.dbdiagram.io/docs
+
+Table books {
+book_id INT [PRIMARY KEY,INCREMENT, not null]
+title VARCHAR(255) [not null]
+author VARCHAR(255) [not null]
+publisher VARCHAR(255) [not null]
+publication_year INT [not null]
+available BOOLEAN [not null, default: False]
+}
+
+Table users {
+user_id INT [INCREMENT, PRIMARY KEY,not null]
+username VARCHAR(50) [not null]
+phone_number VARCHAR(15) [not null]
+max_loan INT [not null]
+loaning INT [not null]
+}
+
+Table loans {
+loan_id INT [INCREMENT, PRIMARY KEY, not null]
+book_id INT [not null]
+user_id INT [not null]
+loan_date DATE [not null, default: 0]
+return_date DATE
+}
+
+Ref: loans.book_id > books.book_id [cascade]// many-to-one
+Ref: loans.user_id > users.user_id // many-to-one
