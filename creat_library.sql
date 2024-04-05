@@ -12,13 +12,13 @@ publication_year INT NOT NULL, -- 도서 번호
 loan_status BOOLEAN DEFAULT FALSE -- 도서의 대출 가능 여부
 );
 
--- 사용자 정보를 저장하는 테이블 (선택 사항)
+-- 사용자 정보를 저장하는 테이블 
 CREATE TABLE users(
 user_id INT AUTO_INCREMENT PRIMARY KEY, -- 사용자 고유 식별자
 username VARCHAR(50) NOT NULL UNIQUE, -- 사용자 이름
 phone_number VARCHAR(15) NOT NULL, -- 사용자 연락처
 max_loan INT NOT NULL, -- 대출가능 도서 수
-loaning INT NOT NULL, -- 대출중인 도서 수
+loaning_count INT NOT NULL, -- 대출중인 도서 수
 );
 
 -- 대출 이력을 저장하는 테이블

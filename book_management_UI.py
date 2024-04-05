@@ -125,16 +125,22 @@ class LibraryWindow(QWidget):
         # 검색할 항목을 선택할 콤보 박스
         book_search_by_label = QLabel("검색할 항목:")
         self.book_search_by_combo = QComboBox()
-        self.book_search_by_combo.addItems(["도서명", "저자", "출판사","출판년도"])
+        self.book_field_mapping = {
+            "도서명": "title",
+            "저자": "author",
+            "출판사": "publisher",
+            "출판년도": "publication_year"
+        }
+        self.book_search_by_combo.addItems(self.book_field_mapping.keys())
 
         # 입력 필드
         book_search_label = QLabel("검색어:")
         self.book_search_edit = QLineEdit()
-        self.book_search_edit.returnPressed.connect(lambda : self.search_data(what_searching_for='book'))
+        self.book_search_edit.returnPressed.connect(self.search_books)
 
         # 검색 버튼
         book_search_button = QPushButton("검색")
-        book_search_button.clicked.connect(lambda : self.search_data(what_searching_for='book'))
+        book_search_button.clicked.connect(self.search_books)
 
         book_search_layout.addWidget(book_search_by_label)
         book_search_layout.addWidget(self.book_search_by_combo)
@@ -191,17 +197,22 @@ class LibraryWindow(QWidget):
 
         # 검색할 항목을 선택할 콤보 박스
         user_search_by_label = QLabel("검색할 항목:")
-        self.user_search_by_combo = QComboBox()
-        self.user_search_by_combo.addItems(["회원번호","이용자명", "연락처"])
+        self.user_search_by_combo = QComboBox()        
+        self.user_field_mapping = {
+            "회원번호": "user_id",
+            "이용자명": "username",
+            "연락처": "phone_number"
+        }
+        self.user_search_by_combo.addItems(self.user_field_mapping.keys())
+
         # 입력 필드
         user_search_label = QLabel("검색어:")
         self.user_search_edit = QLineEdit()
-        # self.search_edit.returnPressed.connect(self.search_user)
-        self.user_search_edit.returnPressed.connect(lambda : self.search_data(what_searching_for='user'))
+        self.user_search_edit.returnPressed.connect(self.search_users)
 
         # 검색 버튼
         user_search_button = QPushButton("검색")
-        user_search_button.clicked.connect(lambda : self.search_data(what_searching_for='user'))
+        user_search_button.clicked.connect(self.search_users)
 
         user_layout.addWidget(user_search_by_label)
         user_layout.addWidget(self.user_search_by_combo)
@@ -245,60 +256,42 @@ class LibraryWindow(QWidget):
     def setup_loan_tab(self, tab):
         layout = QVBoxLayout()
 
-        # 수평 레이아웃을 생성하여 대출 버튼을 배치
-        loan_layout = QHBoxLayout()
-        loan_button = QPushButton("대출 하기")
-        loan_button.clicked.connect(self.loan_book)
-        loan_layout.addWidget(loan_button)
+        user_info_layout = QTableWidget()
+
+        # 대출 목록에서 반납하기 위한 버튼
+        loan_manage_layout = QHBoxLayout()
+        
+        return_book_button = QPushButton("반납 하기")
+        return_book_button.clicked.connect(self.return_book)
+
+        loan_manage_layout.addWidget(return_book_button)
 
         # 사용자 대출 목록 표시를 위한 테이블 위젯
         self.user_loan_result_table = QTableWidget()
         self.setup_table(self.user_loan_result_table)
 
-        # 대출 목록 관리를 위한 버튼 및 테이블 위젯
-        loan_manage_layout = QHBoxLayout()
+        # 수평 레이아웃을 생성하여 대출 버튼을 배치
+        loan_layout = QHBoxLayout()
+
         delete_book_button = QPushButton("대출 목록에서 삭제")
         delete_book_button.clicked.connect(self.delete_from_loan_list)
-        loan_manage_layout.addWidget(delete_book_button)
+
+        loan_button = QPushButton("대출 하기")
+        loan_button.clicked.connect(self.loan_book)
+
+        loan_layout.addWidget(delete_book_button)
+        loan_layout.addWidget(loan_button)
 
         self.to_loan_book_table = QTableWidget()
         self.setup_table(self.to_loan_book_table)
 
-        layout.addLayout(loan_layout)
-        layout.addWidget(self.user_loan_result_table)
+        layout.addWidget(user_info_layout)
         layout.addLayout(loan_manage_layout)
+        layout.addWidget(self.user_loan_result_table)
+        layout.addLayout(loan_layout)
         layout.addWidget(self.to_loan_book_table)
 
         tab.setLayout(layout)
-
-    def search_data(self, what_searching_for:str):
-    # Determine whether it's a book search or user search
-        if what_searching_for == 'book':
-            result_table = self.book_result_table
-            data = self.book_dummy_data
-            labels = self.book_labels
-            search_by = self.book_search_by_combo.currentText()
-            search_keyword = self.book_search_edit.text()
-        elif what_searching_for == 'user':
-            result_table = self.user_result_table
-            data = self.user_dummy_data
-            labels = self.user_labels
-            search_by = self.user_search_by_combo.currentText()
-            search_keyword = self.user_search_edit.text()
-
-        # Clear the existing table content
-        result_table.setRowCount(0)
-        search_label_idx = labels.index(search_by)
-        
-        for row_index, row_data in enumerate(data):
-            if search_keyword in str(row_data[search_label_idx]):
-                result_table.insertRow(result_table.rowCount())
-                self.add_checkbox_to_row(row_index, result_table)
-                for col_index, col_data in enumerate(row_data):
-                    item = QTableWidgetItem(str(col_data))
-                    if isinstance(col_data, int) and col_index in (0, 4):
-                        item.setData(Qt.DisplayRole, int(col_data))
-                    result_table.setItem(row_index, col_index + 1, item)
 
     def show_book_add_dialog(self):
         dialog = BookAddDialog()
@@ -410,12 +403,14 @@ class LibraryWindow(QWidget):
             for row_index in reversed(selected_rows):
                 book_result_table.removeRow(row_index)
                 data.remove(data[row_index])
+    
     def setup_table(self, table):
         table.setColumnCount(len(self.loan_labels) + 1)
         table.setHorizontalHeaderLabels([""] + self.loan_labels)
         table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         table.setSortingEnabled(True)
         table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+    
     def loan_book(self):
         # 선택된 대출 목록에 도서 추가
         selected_books = self.user_loan_result_table.selectedIndexes()
@@ -444,6 +439,82 @@ class LibraryWindow(QWidget):
         # 대출 목록 테이블에 추가
         self.update_to_loan_table()
     
+    def search_books(self):
+        # DB 연결 정보 설정
+        db_connection = pymysql.connect(
+            host="localhost",
+            user="root",
+            password="0000",
+            database="library_management"
+        )
+
+        # 콤보 박스에서 선택한 속성과 검색어 가져오기
+        selected_item = self.book_search_by_combo.currentText()
+        search_by = self.book_field_mapping[selected_item]
+        search_keyword = self.book_search_edit.text()
+
+        # 쿼리 준비
+        query = "SELECT * FROM books WHERE {} LIKE %s".format(search_by)
+
+        # 쿼리 실행
+        cursor = db_connection.cursor()
+        cursor.execute(query, ('%' + search_keyword + '%',))
+
+        # 결과 가져오기
+        search_results = cursor.fetchall()
+
+        self.update_data_to_table(self.book_result_table,search_results)
+        
+        # 연결 해제
+        db_connection.close()
+
+    def search_users(self):
+        # DB 연결 정보 설정
+        db_connection = pymysql.connect(
+            host="localhost",
+            user="root",
+            password="0000",
+            database="library_management"
+        )
+
+        # 콤보 박스에서 선택한 속성과 검색어 가져오기
+        selected_item = self.user_search_by_combo.currentText()
+        search_by = self.user_field_mapping[selected_item]
+        search_keyword = self.user_search_edit.text()
+
+        # 쿼리 준비
+        query = "SELECT * FROM users WHERE {} LIKE %s".format(search_by)
+
+        # 쿼리 실행
+        cursor = db_connection.cursor()
+        cursor.execute(query, ('%' + search_keyword + '%',))
+
+        # 결과 가져오기
+        search_results = cursor.fetchall()
+
+        self.update_data_to_table(self.user_result_table, search_results)
+        
+        # 연결 해제
+        db_connection.close()
+
+    def clear_table(self,table_widget):
+        # 테이블의 모든 행 삭제
+        table_widget.setRowCount(0)
+
+    def update_data_to_table(self, table_widget, data):
+        # 테이블의 모든 행 삭제
+        self.clear_table(table_widget)
+        # 검색 결과를 테이블에 추가 
+        for row_index, row_data in enumerate(data):
+            table_widget.insertRow(row_index)
+            self.add_checkbox_to_row(row_index, table_widget)
+            for col_index, col_data in enumerate(row_data):
+                item = QTableWidgetItem(str(col_data))
+                table_widget.setItem(row_index, col_index + 1, item)
+
+        # 테이블 편집 비활성화
+        table_widget.setEditTriggers(QAbstractItemView.NoEditTriggers)
+
     #대출가능 상태를 확인하고 대출을 진행하는 쿼리
     def check_and_loan_book(user_id, book_id):
 
@@ -480,6 +551,10 @@ class LibraryWindow(QWidget):
             conn.rollback()
         finally:
             conn.close()
+
+    def return_book():
+        pass
+
 
 class BookAddDialog(QDialog):
     def __init__(self):
@@ -536,11 +611,11 @@ class BookAddDialog(QDialog):
         publish_year = self.publish_year_edit.text()
         book_code = self.book_code_edit.text()
         loan_status = "대출가능"
-
+    
         # 올바르지 않은 값 필터링
-
         return book_name, author, publisher, publish_year, book_code, loan_status
     
+
 class BookModifyDialog(QDialog):
     def __init__(self, book_info):
         super().__init__()
