@@ -6,86 +6,7 @@ QHeaderView, QDialog, QAbstractItemView, QMessageBox
 
 from PyQt5.QtCore import Qt
 
-def generate_books():
-    from random import randrange, choice
-    books = []
-    for i in range(1, 51):
-        # 도서명, 저자, 출판사, 출판년도, 도서번호
-        book = [
-            i,
-            f"도서 {i}",
-            f"저자 {i}",
-            f"출판사 {randrange(1,6)}",
-            str(2000 + randrange(10,20)),
-            choice(("대출중","대출가능"))
-        ]
-        books.append(book)
-    return books
-
-def generate_users():
-    from random import randrange
-    users = []
-    for i in range(1, 11):
-        max_loan = randrange(3,11)
-        # 회원 ID, 이용자명, 연락처, 대출가능 도서 수, 대출중인 도서 수
-        user = [
-            f"{i}",
-            f"이용자 {i}",
-            f"010-{randrange(1000,10000)}-{randrange(1000,10000)}",
-            max_loan,
-            0
-        ]
-        users.append(user)
-    return users
-
-def generate_loans(books,users):
-    import datetime 
-    from random import randrange, randint
-
-    # 시작 날짜와 종료 날짜 정의
-    start_date = datetime.datetime(2024, 1, 1)
-    end_date = datetime.datetime(2024, 12, 31)
-
-    # 랜덤한 날짜 생성
-    random_date = start_date + datetime.timedelta(days=randint(0, (end_date - start_date).days))
-
-    loan_books = []
-    loan_id = 0
-    for book in books:
-        if book[5] == "대출중":
-            loan_id += 1
-            book_name = book[1]
-            book_id = book[0]
-            # 랜덤한 사용자 선택
-            user = users[randint(0, len(users) - 1)]
-            user_id = user[0]
-            user_name = user[1]
-            # 해당 사용자의 대출 가능한 도서 수와 대출 중인 도서 수 확인
-            max_loan = user[3]
-            current_loans = user[4]
-            # 최대 대출 권수를 넘지 않는 경우에만 대출 생성
-            if current_loans < max_loan:
-                # 해당 사용자의 대출 중인 도서 수 증가
-                user[4] += 1
-                loan_date = random_date
-                due_date = random_date + datetime.timedelta(10)
-                loan_info = [
-                    loan_id,
-                    book_name,
-                    book_id,
-                    user_name,
-                    user_id,
-                    loan_date,
-                    due_date
-                ]
-                loan_books.append(loan_info)
-    return loan_books
-
 class LibraryWindow(QWidget):
-
-    book_dummy_data = generate_books()
-    user_dummy_data = generate_users()
-    loan_dummy_data = generate_loans(book_dummy_data, user_dummy_data)
     
     book_labels = ["도서번호","도서명", "저자", "출판사", "출판년도" ,"대출 상태"]
     user_labels = ["회원번호", "이용자명", "연락처", "대출가능 도서 수", "대출중인 도서 수"]
@@ -121,7 +42,7 @@ class LibraryWindow(QWidget):
         checkbox_item.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)  # 사용자가 체크 가능하도록 설정
         checkbox_item.setCheckState(Qt.Unchecked)  # 기본적으로 체크 안된 상태로 설정
         table.setItem(row_index, 0, checkbox_item)  # 체크박스를 첫 번째 열에 추가
-        
+
     def setup_book_tab(self, tab):
         layout = QVBoxLayout()
 
@@ -189,8 +110,6 @@ class LibraryWindow(QWidget):
 
         tab.setLayout(layout)
 
-
-
     def setup_user_tab(self, tab):
         layout = QVBoxLayout()
 
@@ -227,9 +146,9 @@ class LibraryWindow(QWidget):
         add_user_button = QPushButton("회원 추가")
         add_user_button.clicked.connect(self.add_user)
         modify_user_button = QPushButton("회원 수정")
-        modify_user_button.clicked.connect(self.show_user_modify_dialog)
+        modify_user_button.clicked.connect(self.edit_user)
         delete_user_button = QPushButton("회원 삭제")
-        delete_user_button.clicked.connect(lambda : self.delete_data(what_deleting_for='user'))
+        delete_user_button.clicked.connect(self.delete_user)
         loan_user_button = QPushButton("대출 할 회원으로 선택")
         loan_user_button.clicked.connect(self.loan_book)
 
@@ -325,15 +244,7 @@ class LibraryWindow(QWidget):
         
         # 연결 해제
         db_connection.close()
-                
-    def add_user(self):
-        dialog = UserAddDialog()
-        if dialog.exec_():
-            user_info = dialog.get_user_info()
-            self.user_dummy_data.append(user_info)
-            # 여기서 도서 정보를 가져와서 도서 목록에 추가하는 작업을 수행합니다.
-            # book_info 변수에는 ["도서명", "저자", "출판사", "출판년도", "도서번호"] 순서로 도서 정보가 들어 있습니다.
-
+    
     def edit_book(self):
     # 수정할 도서 선택 대화상자 열기
         selected_rows = []
@@ -424,8 +335,7 @@ class LibraryWindow(QWidget):
         for book_id in book_ids:
             self.delete_book_from_database(book_id)
 
-        # 도서 목록 업데이트
-        self.update_book_table()
+        QMessageBox.information(self, "알림", "삭제되었습니다.")
 
     def delete_book_from_database(self, book_id):
         # DB 연결 정보 설정
@@ -448,79 +358,152 @@ class LibraryWindow(QWidget):
 
         # 연결 해제
         db_connection.close()
+        
+    def add_user(self):
+        dialog = UserAddDialog()
+        if dialog.exec_():
+            user_info = dialog.get_user_info()
+            self.add_user_to_database(user_info)
+            # 여기서 도서 정보를 가져와서 도서 목록에 추가하는 작업을 수행합니다.
+            # book_info 변수에는 ["이용자명명", "연락처", 최대 대출 도서 수] 순서로 도서 정보가 들어 있습니다.
 
-    def show_user_modify_dialog(self):
+    def add_user_to_database(self, user_info):
+
+    # DB 연결 정보 설정
+        db_connection = pymysql.connect(
+            host="localhost",
+            user="root",
+            password="0000",
+            database="library_management"
+        )
+
+        # 쿼리 준비
+        query = "INSERT INTO users (username, phone_number, max_loan) VALUES (%s, %s, %s)"
+
+        # 쿼리 실행
+        cursor = db_connection.cursor()
+        cursor.execute(query, user_info)
+
+        # 커밋
+        db_connection.commit()
+        
+        # 연결 해제
+        db_connection.close()
+        
+    def edit_user(self):
+    # 수정할 도서 선택 대화상자 열기
         selected_rows = []
         for row_index in range(self.user_result_table.rowCount()):
             checkbox_item = self.user_result_table.item(row_index, 0)
             if checkbox_item.checkState() == Qt.Checked:
                 selected_rows.append(row_index)
 
-        if len(selected_rows) > 1:
+        if len(selected_rows) != 1:
             QMessageBox.information(self, "알림", "수정할 항목을 하나만 선택하세요.")
             return
-        elif len(selected_rows) < 1:
-            QMessageBox.information(self, "알림", "수정할 항목을 선택하세요.")
-            return
 
-        selected_row_index = selected_rows[0]
-        selected_user_info = self.user_dummy_data[selected_row_index]
+        # 선택된 도서의 정보 가져오기
+        selected_row = selected_rows[0]
+        user_id = self.user_result_table.item(selected_row, 1).text()  # 도서 ID 가져오기
+        user_info = self.get_user_info_from_database(user_id)
 
-        dialog = UserModifyDialog(selected_user_info)
+        # 도서 정보 수정 대화상자 열기
+        dialog = UserEditDialog(user_info)
         if dialog.exec_():
-            modified_user_info = dialog.get_modified_user_info()
-            self.book_dummy_data[selected_row_index] = modified_user_info
-            self.update_user_table()
+            updated_user_info = dialog.get_modified_user_info()
 
-    def update_book_table(self):
-        self.book_result_table.setRowCount(0)
-        for row_index, row_data in enumerate(self.book_dummy_data):
-            self.add_checkbox_to_row(row_index, self.book_result_table)
-            for col_index, col_data in enumerate(row_data):
-                item = QTableWidgetItem(str(col_data))
-                if isinstance(col_data, int) and col_index in (0, 4):
-                    item.setData(Qt.DisplayRole, int(col_data))
-                self.book_result_table.setItem(row_index, col_index + 1, item)
+            # 도서 정보를 데이터베이스에 업데이트
+            self.update_user_in_database(user_id, updated_user_info)
 
-    def update_user_table(self):
-        self.user_result_table.setRowCount(0)
-        for row_index, row_data in enumerate(self.user_dummy_data):
-            self.add_checkbox_to_row(row_index, self.user_result_table)
-            for col_index, col_data in enumerate(row_data):
-                item = QTableWidgetItem(str(col_data))
-                if isinstance(col_data, int) and col_index in (1, 3, 4):
-                    item.setData(Qt.DisplayRole, int(col_data))
-                self.user_result_table.setItem(row_index, col_index + 1, item)
+    def get_user_info_from_database(self, user_id):
+    # DB 연결 정보 설정
+        db_connection = pymysql.connect(
+            host="localhost",
+            user="root",
+            password="0000",
+            database="library_management"
+        )
 
-    def delete_data(self, what_deleting_for:str):
-        # 선택된 행의 인덱스 추적
-        if what_deleting_for == 'book':
-            book_result_table = self.book_result_table
-            data = self.book_dummy_data
-        elif what_deleting_for == 'user':
-            book_result_table = self.user_result_table
-            data = self.user_dummy_data
+        # 쿼리 준비
+        query = "SELECT * FROM users WHERE user_id = %s"
 
+        # 쿼리 실행
+        cursor = db_connection.cursor()
+        cursor.execute(query, (user_id,))
+
+        # 결과 가져오기
+        user_info = cursor.fetchone()
+        
+        # 연결 해제
+        db_connection.close()
+
+        return user_info
+    
+    def update_user_in_database(self, user_id, updated_user_info):
+    # DB 연결 정보 설정
+        db_connection = pymysql.connect(
+            host="localhost",
+            user="root",
+            password="0000",
+            database="library_management"
+        )
+
+        # 쿼리 준비
+        query = "UPDATE users SET username = %s, phone_number = %s, max_loan = %s WHERE user_id = %s"
+
+        # 쿼리 실행
+        cursor = db_connection.cursor()
+        cursor.execute(query, (*updated_user_info, user_id))
+
+        # 커밋
+        db_connection.commit()
+        
+        # 연결 해제
+        db_connection.close()
+
+    def delete_user(self):
+        # 선택된 도서 확인
         selected_rows = []
-        for row_index in range(book_result_table.rowCount()):
-            checkbox_item = book_result_table.item(row_index, 0)
+        for row_index in range(self.user_result_table.rowCount()):
+            checkbox_item = self.user_result_table.item(row_index, 0)
             if checkbox_item.checkState() == Qt.Checked:
                 selected_rows.append(row_index)
 
-        # 선택된 항목이 없을 경우 메시지 표시 후 종료
-        if not selected_rows:
+        if len(selected_rows) < 1:
             QMessageBox.information(self, "알림", "삭제할 항목을 선택하세요.")
             return
-        # 삭제를 확인하는 메시지 박스 표시
-        reply = QMessageBox.question(self, '확인', '선택된 항목을 삭제하시겠습니까?', QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
-        # 사용자가 "예"를 선택한 경우에만 삭제 진행
-        if reply == QMessageBox.Yes:
-            # 선택된 행을 역순으로 반복하여 삭제하여 인덱스 오류를 방지합니다.
-            for row_index in reversed(selected_rows):
-                book_result_table.removeRow(row_index)
-                data.remove(data[row_index])
-    
+        # 선택된 도서의 ID 가져오기
+        user_ids = [self.user_result_table.item(row, 1).text() for row in selected_rows]
+
+        # DB에서 도서 삭제
+        for user_id in user_ids:
+            self.delete_book_from_database(user_id)
+
+        QMessageBox.information(self, "알림", "삭제되었습니다.")
+
+    def delete_user_from_database(self, user_id):
+        # DB 연결 정보 설정
+        db_connection = pymysql.connect(
+            host="localhost",
+            user="root",
+            password="0000",
+            database="library_management"
+        )
+
+        # 쿼리 준비
+        query = "DELETE FROM users WHERE user_id = %s"
+
+        # 쿼리 실행
+        cursor = db_connection.cursor()
+        cursor.execute(query, (user_id,))
+
+        # 커밋
+        db_connection.commit()
+
+        # 연결 해제
+        db_connection.close()
+        
     def setup_table(self, table):
         table.setColumnCount(len(self.loan_labels) + 1)
         table.setHorizontalHeaderLabels([""] + self.loan_labels)
@@ -776,6 +759,7 @@ class BookEditDialog(QDialog):
 
         return book_name, author, publisher, publish_year
 
+
 class UserAddDialog(QDialog):
     def __init__(self):
         super().__init__()
@@ -785,7 +769,6 @@ class UserAddDialog(QDialog):
 
         layout = QVBoxLayout()
 
-        self.user_id_edit = QLineEdit()
         self.user_name_edit = QLineEdit()
         self.contact_edit = QLineEdit()
         self.max_books_edit = QLineEdit()
@@ -820,7 +803,8 @@ class UserAddDialog(QDialog):
 
         return user_name, contact, max_books
 
-class UserModifyDialog(QDialog):
+
+class UserEditDialog(QDialog):
     def __init__(self, user_info):
         super().__init__()
 
@@ -829,14 +813,9 @@ class UserModifyDialog(QDialog):
 
         layout = QVBoxLayout()
 
-        self.user_id_edit = QLineEdit(user_info[0])
         self.user_name_edit = QLineEdit(user_info[1])
-        self.contact_edit = QLineEdit(user_info[2])
-        self.max_books_edit = QLineEdit(str(user_info[3]))
-
-        user_id_layout = QHBoxLayout()
-        user_id_layout.addWidget(QLabel("회원 ID:"))
-        user_id_layout.addWidget(self.user_id_edit)
+        self.contact_edit = QLineEdit(user_info[1])
+        self.max_books_edit = QLineEdit(str(user_info[2]))
 
         user_name_layout = QHBoxLayout()
         user_name_layout.addWidget(QLabel("이용자명:"))
@@ -850,7 +829,6 @@ class UserModifyDialog(QDialog):
         max_books_layout.addWidget(QLabel("대출가능 도서 수:"))
         max_books_layout.addWidget(self.max_books_edit)
 
-        layout.addLayout(user_id_layout)
         layout.addLayout(user_name_layout)
         layout.addLayout(contact_layout)
         layout.addLayout(max_books_layout)
@@ -863,12 +841,11 @@ class UserModifyDialog(QDialog):
         self.setLayout(layout)
 
     def get_modified_user_info(self):
-        user_id = self.user_id_edit.text()
         user_name = self.user_name_edit.text()
         contact = self.contact_edit.text()
         max_books = self.max_books_edit.text()
 
-        return user_id, user_name, contact, max_books
+        return  user_name, contact, max_books
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
