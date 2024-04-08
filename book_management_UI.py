@@ -1,7 +1,7 @@
 import sys
 import pymysql
 from PyQt5.QtWidgets  import QApplication, QWidget, QVBoxLayout, QTabWidget, QLabel, \
-QLineEdit, QPushButton, QHBoxLayout, QTextEdit, QComboBox, QTableWidget, QTableWidgetItem,\
+QLineEdit, QPushButton, QHBoxLayout, QComboBox, QTableWidget, QTableWidgetItem,\
 QHeaderView, QDialog, QAbstractItemView, QMessageBox
 
 from PyQt5.QtCore import Qt
@@ -539,7 +539,7 @@ class LibraryWindow(QWidget):
         # 대출 목록 테이블에 추가
         self.update_to_loan_table()
     
-    def search_books(self):
+    def search(self, entity, search_by_combo, field_mapping, search_edit, result_table):
         # DB 연결 정보 설정
         db_connection = pymysql.connect(
             host="localhost",
@@ -549,12 +549,12 @@ class LibraryWindow(QWidget):
         )
 
         # 콤보 박스에서 선택한 속성과 검색어 가져오기
-        selected_item = self.book_search_by_combo.currentText()
-        search_by = self.book_field_mapping[selected_item]
-        search_keyword = self.book_search_edit.text()
+        selected_item = search_by_combo.currentText()
+        search_by = field_mapping[selected_item]
+        search_keyword = search_edit.text()
 
         # 쿼리 준비
-        query = "SELECT * FROM books WHERE {} LIKE %s".format(search_by)
+        query = "SELECT * FROM {}s WHERE {} LIKE %s".format(entity, search_by)
 
         # 쿼리 실행
         cursor = db_connection.cursor()
@@ -563,40 +563,17 @@ class LibraryWindow(QWidget):
         # 결과 가져오기
         search_results = cursor.fetchall()
 
-        self.update_data_to_table(self.book_result_table,search_results)
+        self.update_data_to_table(result_table, search_results)
         
         # 연결 해제
         db_connection.close()
+
+    def search_books(self):
+        self.search("book", self.book_search_by_combo, self.book_field_mapping, self.book_search_edit, self.book_result_table)
 
     def search_users(self):
-        # DB 연결 정보 설정
-        db_connection = pymysql.connect(
-            host="localhost",
-            user="root",
-            password="0000",
-            database="library_management"
-        )
-
-        # 콤보 박스에서 선택한 속성과 검색어 가져오기
-        selected_item = self.user_search_by_combo.currentText()
-        search_by = self.user_field_mapping[selected_item]
-        search_keyword = self.user_search_edit.text()
-
-        # 쿼리 준비
-        query = "SELECT * FROM users WHERE {} LIKE %s".format(search_by)
-
-        # 쿼리 실행
-        cursor = db_connection.cursor()
-        cursor.execute(query, ('%' + search_keyword + '%',))
-
-        # 결과 가져오기
-        search_results = cursor.fetchall()
-
-        self.update_data_to_table(self.user_result_table, search_results)
-        
-        # 연결 해제
-        db_connection.close()
-
+        self.search("user", self.user_search_by_combo, self.user_field_mapping, self.user_search_edit, self.user_result_table)
+            
     def clear_table(self,table_widget):
         # 테이블의 모든 행 삭제
         table_widget.setRowCount(0)
